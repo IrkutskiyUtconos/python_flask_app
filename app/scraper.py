@@ -7,9 +7,11 @@ def scrape_and_save(base_url):
     response = requests.get(base_url, headers=headers)
     if response.status_code != 200:
         raise Exception(f"Не удалось загрузить страницу: {response.status_code}")
+    
     soup = BeautifulSoup(response.text, 'html.parser')
     recipe_links = soup.find_all('a', class_='listRecipieTitle')
     recipes = []
+    
     for link in recipe_links:
         href = link.get('href')
         name = link.text.strip()
@@ -29,10 +31,12 @@ def scrape_and_save(base_url):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             recipe_id INTEGER,
-            FOREIGN KEY(recipe_id) REFERENCES recipes(id)
+            FOREIGN KEY(recipe_id) REFERENCES recipes(id),
+            UNIQUE(name, recipe_id)
         )
     ''')
     conn.commit()
+
     for recipe_url, recipe_name in recipes:
         try:
             cursor.execute('INSERT OR IGNORE INTO recipes (name, url) VALUES (?, ?)', (recipe_name, recipe_url))
@@ -41,7 +45,7 @@ def scrape_and_save(base_url):
             recipe_id = cursor.fetchone()[0]
             ingredients = scrape_ingredients(recipe_url)
             for ingredient in ingredients:
-                cursor.execute('INSERT INTO ingredients (name, recipe_id) VALUES (?, ?)', (ingredient, recipe_id))
+                cursor.execute('INSERT OR IGNORE INTO ingredients (name, recipe_id) VALUES (?, ?)', (ingredient, recipe_id))
             conn.commit()
             print(f"Успешно добавлен рецепт: {recipe_name} с {len(ingredients)} ингредиентами.")
         except Exception as e:
@@ -65,7 +69,7 @@ def scrape_ingredients(recipe_url):
     return ingredients
 
 i = 1
-while i < 10:
+while i < 5:
     base_url = f"https://povar.ru/mostnew/all/{i}/"
     scrape_and_save(base_url)
     i += 1
